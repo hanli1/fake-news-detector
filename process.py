@@ -8,11 +8,12 @@ num_reals = reals.shape[0]
 
 combined_list = []
 
-def create_obj(source, title, text):
+def create_obj(source, title, text, real):
     return {
         "source": source,
         "title": title,
-        "text": text
+        "text": text,
+        "real": real
     }
 
 for index, row in fakes.iterrows():
@@ -20,17 +21,21 @@ for index, row in fakes.iterrows():
     title = row['title']
     # timestamp = row['published']
     text = row['text']
-    obj = create_obj(source, title, text)
+    obj = create_obj(source, title, text, 0)
     combined_list.append(obj)
 
+whitelist = ["Reuters", "National Review", "NPR", "Washington Post"]
 for index, row in reals.iterrows():
-    if index >= num_fakes:
-        break
+    # if index >= num_fakes:
+    #     break
     source = row['publication']
+    if source not in whitelist:
+        continue
+
     # timestamp = row['date']
     title = row['title']
     text = row['content']
-    obj = create_obj(source, title, text)
+    obj = create_obj(source, title, text, 1)
     combined_list.append(obj)
 
 print "combined total: {} samples".format(len(combined_list))
