@@ -24,8 +24,8 @@ sys.setdefaultencoding("utf-8")
 #     return features, real
 
 def main():
-    saved_model_file = "baseline_bow.pickle"
-    saved_vectorizer = "baseline_vectorizer.pickle"
+    saved_model_file = "pickles/baseline_bow.pickle"
+    saved_vectorizer = "pickles/baseline_vectorizer.pickle"
     midpoint = 13000
     size = 5000
 
@@ -45,7 +45,7 @@ def main():
         vectorizer = pickle.load(open(saved_vectorizer, 'rb'))
     else:
         print "fitting/saving featurizer"
-        vectorizer = CountVectorizer() 
+        vectorizer = TfidfVectorizer(stop_words='english') 
         X_train = vectorizer.fit_transform(X_train)
         pickle.dump(vectorizer, open(saved_vectorizer, 'wb'))
 
@@ -54,6 +54,7 @@ def main():
         clf.fit(X_train, Y_train)
         pickle.dump(clf, open(saved_model_file, 'wb'))
     
+    X_text = X_test
     X_test = vectorizer.transform(X_test)
     print "predicting"
     Y_pred = clf.predict(X_test)
@@ -61,6 +62,18 @@ def main():
     print results
     # print clf.predict(vectorizer.transform(["barack obama is the president"]))
     print metrics.confusion_matrix(Y_true, Y_pred)
+    # for i, (x, prediction, label) in enumerate(zip(X_test, Y_pred, Y_true)):
+    #     if prediction != label:
+    #         print "predict: {}, actual: {}, \ntext:{}".format(prediction, label, X_text[i]) 
+
+    show_most_informative_features(vectorizer, clf)
+
+def show_most_informative_features(vectorizer, clf, n=20):
+    feature_names = vectorizer.get_feature_names()
+    coefs_with_fns = sorted(zip(clf.coef_[0], feature_names))
+    top = zip(coefs_with_fns[:n], coefs_with_fns[:-(n + 1):-1])
+    for (coef_1, fn_1), (coef_2, fn_2) in top:
+        print "\t%.4f\t%-15s\t\t%.4f\t%-15s" % (coef_1, fn_1, coef_2, fn_2)
 
 if __name__ == '__main__':
     main()
