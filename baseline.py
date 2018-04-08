@@ -1,6 +1,6 @@
 import pandas as pd
 
-from sklearn import linear_model
+from sklearn import linear_model, metrics
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -26,12 +26,13 @@ sys.setdefaultencoding("utf-8")
 def main():
     saved_model_file = "baseline_bow.pickle"
     saved_vectorizer = "baseline_vectorizer.pickle"
-    size = 15000
+    midpoint = 13000
+    size = 5000
 
     print "reading data"
     dataset = pd.read_csv("data/combined.csv")
-    all_data = dataset['text'][6000:6000+size].values.astype('U')
-    all_labels = dataset['real'].tolist()[6000:6000+size]
+    all_data = dataset['text'][midpoint-size/2:midpoint+size/2].values.astype('U')
+    all_labels = dataset['real'].tolist()[midpoint-size/2:midpoint+size/2]
     all_data = np.array(all_data)
     all_labels = np.array(all_labels)
 
@@ -58,7 +59,8 @@ def main():
     Y_pred = clf.predict(X_test)
     results = precision_recall_fscore_support(Y_true, Y_pred, average='macro')
     print results
-    print clf.predict(vectorizer.transform(["barack obama is the president"]))
+    # print clf.predict(vectorizer.transform(["barack obama is the president"]))
+    print metrics.confusion_matrix(Y_true, Y_pred)
 
 if __name__ == '__main__':
     main()
