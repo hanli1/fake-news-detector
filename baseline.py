@@ -12,22 +12,16 @@ import sys
 reload(sys)
 sys.setdefaultencoding("utf-8")
 
-# def featurize(source, title, text, real):
-    
-#     return {
-#         "source": source,
-#         "title": title,
-#         "text": text,
-#         "real": real
-#     }
-
-#     return features, real
-
 def main():
+    if len(sys.argv) == 1:
+        retrain = 0
+    else:
+        retrain = int(sys.argv[1])
+
     saved_model_file = "pickles/baseline_bow.pickle"
     saved_vectorizer = "pickles/baseline_vectorizer.pickle"
     midpoint = 13000
-    size = 5000
+    size = 1000
 
     print "reading data"
     dataset = pd.read_csv("data/combined.csv")
@@ -39,7 +33,7 @@ def main():
     print "train test split"
     X_train, X_test, Y_train, Y_true = train_test_split(all_data, all_labels, random_state=42)
     
-    if os.path.isfile(saved_model_file):
+    if os.path.isfile(saved_model_file) and not retrain:
         print "loading model and vectorizer"
         clf = pickle.load(open(saved_model_file, 'rb'))
         vectorizer = pickle.load(open(saved_vectorizer, 'rb'))
