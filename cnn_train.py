@@ -1,25 +1,27 @@
 import pandas as pd
 
-from sklearn import linear_model, metrics
-from sklearn.model_selection import train_test_split
-from gensim.models import Word2Vec
-from nltk.tokenize import word_tokenize
-
-import tensorflow as tf
-from tensorflow.contrib import learn
-
 import numpy as np
+np.random.seed(42)
 import pickle
 import os.path
 import sys
 import time
 import collections
-from cnn import TextCNN
-
 import datetime
+
+from sklearn import linear_model, metrics
+from sklearn.model_selection import train_test_split
+from gensim.models import Word2Vec
+from nltk.tokenize import word_tokenize
+import tensorflow as tf
+from tensorflow.contrib import learn
+
+from cnn import TextCNN
+import utils
 
 # Parameters
 # ==================================================
+evaluate_checkpoint = 2
 
 # Data loading params
 tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
@@ -34,9 +36,9 @@ tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 
 
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
-tf.flags.DEFINE_integer("num_epochs", 200, "Number of training epochs (default: 200)")
-tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
-tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
+tf.flags.DEFINE_integer("num_epochs", 100, "Number of training epochs (default: 200)")
+tf.flags.DEFINE_integer("evaluate_every", evaluate_checkpoint, "Evaluate model on dev set after this many steps (default: 100)")
+tf.flags.DEFINE_integer("checkpoint_every", evaluate_checkpoint, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
@@ -50,36 +52,8 @@ for attr, value in sorted(FLAGS.__flags.items()):
 print("")
 
 
-midpoint = 13000
-size = 1000
+X_train, Y_train, X_test, Y_true, vocab_processor = utils.get_text_data()
 
-print("reading data")
-dataset = pd.read_csv("data/combined.csv")
-all_data = dataset['text'][int(midpoint-size/2):int(midpoint+size/2)].values.astype('U')
-all_labels = dataset['real'].tolist()[int(midpoint-size/2):int(midpoint+size/2)]
-all_data = np.array(all_data)
-all_labels = np.array(all_labels)
-# one hot encoding
-all_labels = np.zeros((all_labels.size, all_labels.max()+1))
-
-print("train test split")
-np.random.seed(42)
-shuffle_indices = np.random.permutation(np.arange(len(all_labels)))
-# Build vocabulary
-max_document_length = max([len(x.split(" ")) for x in all_data])
-vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length)
-X = np.array(list(vocab_processor.fit_transform(all_data)))
-Y = all_labels
-
-X_shuffled = X[shuffle_indices]
-Y_shuffled = Y[shuffle_indices]
-
-test_sample_index = -1 * int(FLAGS.test_sample_percentage * float(len(Y)))
-X_train, X_test = X_shuffled[:test_sample_index], X_shuffled[test_sample_index:]
-Y_train, Y_true = Y_shuffled[:test_sample_index], Y_shuffled[test_sample_index:]
-
-print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
-print("Train/Test split: {:d}/{:d}".format(len(Y_train), len(Y_true)))
 
 # print("fitting/saving")
 # clf = Pipeline([ ("word2vec vectorizer", TfidfEmbeddingVectorizer(w2v)),
@@ -131,7 +105,9 @@ with tf.Graph().as_default():
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
         saver = tf.train.Saver(tf.global_variables())  
-
+        
+        # Write vocabulary
+        vocab_processor.save(os.path.join(out_dir, "vocab"))
 
         sess.run(tf.global_variables_initializer())
 
@@ -184,17 +160,9 @@ with tf.Graph().as_default():
             if writer:
                 writer.add_summary(summaries, step)
 
-        def create_batches(data, labels, batch_size, num_epochs):
-            for epoch in range(num_epochs):
-                # print("Epoch {}/{}".format(epoch, num_epochs))
-                idx = np.arange(0 , len(data))
-                np.random.shuffle(idx)
-                idx = idx[:batch_size]
-                yield data[idx], labels[idx]
-
         # Generate batches
         print("generating batches")
-        batches = create_batches(X_train, Y_train, FLAGS.batch_size, FLAGS.num_epochs)
+        batches = utils.create_batches(X_train, Y_train, FLAGS.batch_size, FLAGS.num_epochs)
         print("training")
         # Training loop. For each batch...
         for batch in batches:
@@ -203,7 +171,7 @@ with tf.Graph().as_default():
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
                 print("\nEvaluation:")
-                dev_step(X_test, y_true, writer=dev_summary_writer)
+                dev_step(X_test, Y_true, writer=dev_summary_writer)
                 print("")
             if current_step % FLAGS.checkpoint_every == 0:
                 path = saver.save(sess, checkpoint_prefix, global_step=current_step)
