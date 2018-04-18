@@ -1,5 +1,5 @@
 import numpy as np
-np.random.seed(42)
+np.random.seed(34)
 import pickle
 import os.path
 import sys
