@@ -16,6 +16,8 @@ import time
 import collections
 from cnn import TextCNN
 
+import datetime
+
 # Parameters
 # ==================================================
 
@@ -57,6 +59,8 @@ all_data = dataset['text'][int(midpoint-size/2):int(midpoint+size/2)].values.ast
 all_labels = dataset['real'].tolist()[int(midpoint-size/2):int(midpoint+size/2)]
 all_data = np.array(all_data)
 all_labels = np.array(all_labels)
+# one hot encoding
+all_labels = np.zeros((all_labels.size, all_labels.max()+1))
 
 print("train test split")
 np.random.seed(42)
@@ -76,6 +80,7 @@ Y_train, Y_true = Y_shuffled[:test_sample_index], Y_shuffled[test_sample_index:]
 
 print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
 print("Train/Test split: {:d}/{:d}".format(len(Y_train), len(Y_true)))
+
 # print("fitting/saving")
 # clf = Pipeline([ ("word2vec vectorizer", TfidfEmbeddingVectorizer(w2v)),
 #                  ("logistic regression", linear_model.LogisticRegression())])
@@ -91,8 +96,9 @@ with tf.Graph().as_default():
             num_classes=2,
             vocab_size=len(vocab_processor.vocabulary_),
             embedding_size=FLAGS.embedding_dim,
-            filter_sizes=map(int, FLAGS.filter_sizes.split(",")),
-            num_filters=FLAGS.num_filters)
+            filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
+            num_filters=FLAGS.num_filters
+            )
 
         global_step = tf.Variable(0, name="global_step", trainable=False)
         optimizer = tf.train.AdamOptimizer(1e-4)
@@ -105,18 +111,18 @@ with tf.Graph().as_default():
         print("Writing to {}\n".format(out_dir))
          
         # Summaries for loss and accuracy
-        loss_summary = tf.scalar_summary("loss", cnn.loss)
-        acc_summary = tf.scalar_summary("accuracy", cnn.accuracy)
+        loss_summary = tf.summary.scalar("loss", cnn.loss)
+        acc_summary = tf.summary.scalar("accuracy", cnn.accuracy)
          
         # Train Summaries
-        train_summary_op = tf.merge_summary([loss_summary, acc_summary])
+        train_summary_op = tf.summary.merge([loss_summary, acc_summary])
         train_summary_dir = os.path.join(out_dir, "summaries", "train")
-        train_summary_writer = tf.train.SummaryWriter(train_summary_dir, sess.graph_def)
+        train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
          
         # Dev summaries
-        dev_summary_op = tf.merge_summary([loss_summary, acc_summary])
+        dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
         dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
-        dev_summary_writer = tf.train.SummaryWriter(dev_summary_dir, sess.graph_def)
+        dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
 
         # Checkpointing
         checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
@@ -124,35 +130,27 @@ with tf.Graph().as_default():
         # Tensorflow assumes this directory already exists so we need to create it
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-        saver = tf.train.Saver(tf.all_variables())  
+        saver = tf.train.Saver(tf.global_variables())  
 
 
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
 
         # initial matrix with random uniform
         initW = np.random.uniform(-0.25,0.25,(len(vocab_processor.vocabulary_), FLAGS.embedding_dim))
-        # load any vectors from the word2vec
-        print("Load word2vec file {}\n".format(FLAGS.word2vec))
-        with open(FLAGS.word2vec, "rb") as f:
-            header = f.readline()
-            vocab_size, layer1_size = map(int, header.split())
-            binary_len = np.dtype('float32').itemsize * layer1_size
-            for line in xrange(vocab_size):
-                word = []
-                while True:
-                    ch = f.read(1)
-                    if ch == ' ':
-                        word = ''.join(word)
-                        break
-                    if ch != '\n':
-                        word.append(ch)   
-                idx = vocab_processor.vocabulary_.get(word)
-                if idx != 0:
-                    initW[idx] = np.fromstring(f.read(binary_len), dtype='float32')  
-                else:
-                    f.read(binary_len)    
+        # # load any vectors from the word2vec
+        # with open(FLAGS.word2vec_file, "rb") as lines:
+        #     print("Opened word2vec file {}".format(FLAGS.word2vec_file))
+        #     w2v = {line.split()[0]: np.array(map(float, line.split()[1:]))
+        #        for line in lines}
 
+        #     print("word2vec contains " + str(len(w2v)) + " total words")
+        #     for word, idx in vocab_processor.vocabulary_._mapping.iteritems():
+        #         if word in w2v:
+        #             initW[idx] = w2v[word]
+
+        print("Assigning embedding variables")
         sess.run(cnn.W.assign(initW))
+
         def train_step(x_batch, y_batch):
             """
             A single training step
@@ -186,13 +184,21 @@ with tf.Graph().as_default():
             if writer:
                 writer.add_summary(summaries, step)
 
+        def create_batches(data, labels, batch_size, num_epochs):
+            for epoch in range(num_epochs):
+                # print("Epoch {}/{}".format(epoch, num_epochs))
+                idx = np.arange(0 , len(data))
+                np.random.shuffle(idx)
+                idx = idx[:batch_size]
+                yield data[idx], labels[idx]
 
         # Generate batches
-        batches = data_helpers.batch_iter(
-            zip(X_train, Y_train), FLAGS.batch_size, FLAGS.num_epochs)
+        print("generating batches")
+        batches = create_batches(X_train, Y_train, FLAGS.batch_size, FLAGS.num_epochs)
+        print("training")
         # Training loop. For each batch...
         for batch in batches:
-            x_batch, y_batch = zip(*batch)
+            x_batch, y_batch = batch
             train_step(x_batch, y_batch)
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
