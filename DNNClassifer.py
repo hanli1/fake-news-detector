@@ -57,7 +57,7 @@ if __name__ == '__main__':
         hidden_units=[500, 100],
         feature_columns=[embedded_text_feature_column],
         n_classes=2,
-        optimizer=tf.train.AdagradOptimizer(learning_rate=0.003))
+        optimizer=tf.train.AdamOptimizer())
 
     estimator.train(input_fn=train_input_fn, steps=1000);
     train_eval_result = estimator.evaluate(input_fn=predict_train_input_fn)
