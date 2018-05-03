@@ -9,13 +9,26 @@ import seaborn as sns
 import time
 from sklearn.model_selection import train_test_split
 
+import nltk
+from nltk.corpus import stopwords
+
 
 def load_data():
-    # raw_data2 = pd.read_csv("data/combined.csv")
+    midpoint = 13000
+    size = 10000
+    # raw_data = pd.read_csv("data/combined.csv")
     raw_data = pd.read_csv("data/fake_or_real_news.csv")
 
-    # all_data = [str(val).decode('utf-8').replace('\n', '').replace('\t', '') for val in raw_data['text'][int(midpoint-size/2):int(midpoint+size/2)].values]
+    # all_data = [str(val).replace('\n', '').replace('\t', '') for val in raw_data['text'][int(midpoint-size/2):int(midpoint+size/2)].values]
     all_data = [str(val).replace('\n', '').replace('\t', '') for val in raw_data['text'].values]
+
+    #Removes Stop words and proper nouns
+    stop_words = set(stopwords.words('english'))
+    for i, val in enumerate(all_data):
+        sentence = str(val)
+        tagged_sentence = nltk.tag.pos_tag(sentence.split())
+        edited_sentence = [word for word,tag in tagged_sentence if tag != 'NNP' and tag != 'NNPS' and word != stop_words]
+        all_data[i] = ' '.join(edited_sentence)
 
     # all_labels = raw_data['real'][int(midpoint-size/2):int(midpoint+size/2)].values
     all_labels = [0 if val == "FAKE" else 1 for val in raw_data['label'].values]
