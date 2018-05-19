@@ -11,14 +11,15 @@ import itertools
 from keras.utils import plot_model
 
 
-from keras.preprocessing.image import ImageDataGenerator
+from keras.callbacks import EarlyStopping
 from keras.models import Sequential
 from keras import optimizers
-from keras.layers import Conv2D, MaxPooling2D, Embedding, LSTM, SpatialDropout1D
+from keras.layers import Conv1D, MaxPooling1D, Embedding, LSTM, SpatialDropout1D
 from keras.layers import Activation, Dropout, Flatten, Dense, BatchNormalization
 from keras import backend as K
 from keras.preprocessing import text, sequence
 from keras import utils
+from keras import regularizers
 
 
 import nltk
@@ -61,10 +62,15 @@ def plot_confusion_matrix(cm, classes,
 
 def load_more_data():
     midpoint = 13000
-    size = 5000
+    size = 7500
     raw_data = pd.read_csv("data/combined.csv")
+    # raw_data = pd.read_csv("data/fake_or_real_news.csv")
+
+    # all_data = [cleanText(str(val)) for val in raw_data['text'].values]
     all_data = [cleanText(str(val)) for val in raw_data['text'][int(midpoint-size/2):int(midpoint+size/2)].values]
+
     all_labels = raw_data['real'][int(midpoint-size/2):int(midpoint+size/2)].values
+    # all_labels = [0 if val == "FAKE" else 1 for val in raw_data['label'].values]
 
     all_data = np.array(all_data)
     all_labels = np.array(all_labels)
@@ -76,30 +82,28 @@ def load_more_data():
     data['text'] = np.array(list(x))
     data['label'] = np.array(list(y))
 
+    # return all_data, all_labels
     return pd.DataFrame.from_dict(data)
 
 def load_data():
     midpoint = 13000
-    size = 10000
-    # raw_data2 = pd.read_csv("data/combined.csv")
+    size = 7000
+    # raw_data = pd.read_csv("data/combined.csv")
     raw_data = pd.read_csv("data/fake_or_real_news.csv")
 
-    # all_data = [str(val).replace('\n', '').replace('\t', '') for val in raw_data['text'][int(midpoint-size/2):int(midpoint+size/2)].values]
     all_data = [cleanText(str(val)) for val in raw_data['text'].values]
+    # all_data = [cleanText(str(val)) for val in raw_data['text'][int(midpoint-size/2):int(midpoint+size/2)].values]
 
-    # Removes Stop words anFd proper nouns , 
-    # stop_words = set(stopwords.words('english'))
-    # for i, val in enumerate(all_data):
-    #     sentence = str(val)
-    #     tagged_sentence = nltk.tag.pos_tag(sentence.split())
-    #     edited_sentence = [word for word,tag in tagged_sentence if tag != 'NNP' and tag != 'NNPS' and word != stop_words]
-    #     all_data[i] = ' '.join(edited_sentence)
 
-    # all_labels = raw_data['real'][int(midpoint-size/2):int(midpoint+size/2)].values
     all_labels = [0 if val == "FAKE" else 1 for val in raw_data['label'].values]
+    # all_labels = raw_data['real'][int(midpoint-size/2):int(midpoint+size/2)].values
+
+    # more_x, more_y = load_more_data()
 
     all_data = np.array(all_data)
     all_labels = np.array(all_labels)
+    # all_data = np.concatenate((np.array(all_data), more_x), axis=0)
+    # all_labels = np.concatenate((np.array(all_labels), more_y), axis=0)
 
     x_train, x_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.2, random_state=42)
 
@@ -198,10 +202,7 @@ if __name__ == '__main__':
     epochs = 10
 
     model = Sequential()
-    model.add(Dense(512, input_shape=(max_words,)))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(1024))
+    model.add(Dense(256, input_shape=(max_words,)))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(1024))
@@ -212,24 +213,49 @@ if __name__ == '__main__':
 
     # model.add(Embedding(max_words, 128, input_shape=(max_words,)))
     # model.add(SpatialDropout1D(0.4))
+    # model.add(Conv1D(128, 3, activation='relu'))
+    # model.add(MaxPooling1D(3))
+    # model.add(Conv1D(128, 3, activation='relu'))
+    # model.add(MaxPooling1D(3))
     # model.add(LSTM(128, dropout=0.2, recurrent_dropout=0.2))
     # model.add(Dense(num_classes))
     # model.add(Activation('sigmoid'))
+    # model.add(Flatten())
+    # model.add(Dense(512, input_shape=(max_words,)))
+    # model.add(Activation('relu'))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(1024))
+    # model.add(Activation('relu'))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(num_classes))
+    # model.add(Activation('sigmoid'))
+
+    print(model.summary())
 
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['accuracy'])
 
+    earlystop = EarlyStopping(monitor='val_acc', min_delta=0.0001, patience=3, \
+                          verbose=1, mode='auto')
+
     history = model.fit(x_train, y_train,
                     batch_size=batch_size,
                     epochs=epochs,
                     verbose=1,
+                    callbacks=[earlystop],
                     validation_split=0.1)
 
     score = model.evaluate(x_test, y_test,
                        batch_size=batch_size, verbose=1)
     print('Test score:', score[0])
     print('Test accuracy:', score[1])
+
+    model.save('model_weights.h5')
+
+    # Save the model architecture
+    # with open('model_architecture.json', 'w') as f:
+    #     f.write(model.to_json())
 
     # plt.plot(history.history['acc'])
     # plt.plot(history.history['val_acc'])
