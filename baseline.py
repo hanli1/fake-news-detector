@@ -24,11 +24,31 @@ def main():
     size = 1000
 
     print "reading data"
-    dataset = pd.read_csv("data/combined.csv")
-    all_data = dataset['text'][midpoint-size/2:midpoint+size/2].values.astype('U')
-    all_labels = dataset['real'].tolist()[midpoint-size/2:midpoint+size/2]
+    # dataset = pandas.read_csv("data/combined.csv")
+    dataset = pd.read_csv("data/fake_or_real_news.csv")
+    # dataset2 = pandas.read_csv("data/combined.csv")
+
+    # all_data = [str(val).decode('utf-8').replace('\n', '').replace('\t', '') for val in dataset['text'][int(midpoint-size/2):int(midpoint+size/2)].values]
+    all_data = [str(val).replace('\n', '').replace('\t', '') for val in dataset['text'].values]
+    # all_data2 = [str(val).decode('utf-8').replace('\n', '').replace('\t', '') for val in dataset2['text'].values]
+
+    # all_labels = dataset['real'][int(midpoint-size/2):int(midpoint+size/2)].values
+    all_labels = [0 if val == "FAKE" else 1 for val in dataset['label'].values]
+    # all_labels2 = dataset2['real'].values
+
     all_data = np.array(all_data)
     all_labels = np.array(all_labels)
+    # print(all_labels)
+
+    # all_data2 = np.array(all_data2)
+    # all_labels2 = np.array(all_labels2)
+    # print(all_labels2)
+
+    # dataset = pd.read_csv("data/combined.csv")
+    # all_data = dataset['text'][midpoint-size/2:midpoint+size/2].values.astype('U')
+    # all_labels = dataset['real'].tolist()[midpoint-size/2:midpoint+size/2]
+    # all_data = np.array(all_data)
+    # all_labels = np.array(all_labels)
 
     print "train test split"
     X_train, X_test, Y_train, Y_true = train_test_split(all_data, all_labels, random_state=42)
