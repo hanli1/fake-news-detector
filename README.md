@@ -1,1 +1,1 @@
-# landscape-generator
+# fake-news-detectors
